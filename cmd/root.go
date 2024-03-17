@@ -17,8 +17,9 @@ const (
 )
 
 var (
-	cmdFlags *config.Flags
-	rootCmd  = &cobra.Command{
+	cmdFlags    *config.Flags
+	subCommands *config.SubCommands
+	rootCmd     = &cobra.Command{
 		Use:   appName,
 		Short: shortAppDesc,
 		RunE:  run,
@@ -66,7 +67,11 @@ func init() {
 		return flagError{err: err}
 	})
 	rootCmd.AddCommand(versionCmd())
+	initSubCommand()
 	initFlags()
+}
+func initSubCommand() {
+	rootCmd.AddCommand(listContainer())
 }
 
 func initFlags() {

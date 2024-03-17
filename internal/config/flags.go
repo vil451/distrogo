@@ -1,11 +1,19 @@
 package config
 
+import "github.com/spf13/cobra"
+
 type Flags struct {
-	LogFile *string
+	LogFile    *string
+	SubCommand *string
+}
+
+type SubCommands struct {
+	GetContainers *cobra.Command
 }
 
 var (
-	AppLogFile string
+	AppLogFile    string
+	GetSubCommand cobra.Command
 )
 
 func NewFlags() *Flags {
@@ -14,6 +22,16 @@ func NewFlags() *Flags {
 	}
 }
 
+func NewSubCommands() *SubCommands {
+	return &SubCommands{
+		GetContainers: subCmdPtr(GetSubCommand),
+	}
+}
+
 func strPtr(s string) *string {
 	return &s
+}
+
+func subCmdPtr(c cobra.Command) *cobra.Command {
+	return &c
 }

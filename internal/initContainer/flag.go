@@ -1,17 +1,12 @@
-package config
+package initContainer
 
 type Flags struct {
-	LogFile    *string
-	SubCommand *string
+	Name *string
 }
-
-var (
-	AppLogFile string
-)
 
 func NewFlags() *Flags {
 	return &Flags{
-		LogFile: strPtr(AppLogFile),
+		Name: strPtr("name"),
 	}
 }
 

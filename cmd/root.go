@@ -17,9 +17,8 @@ const (
 )
 
 var (
-	cmdFlags    *config.Flags
-	subCommands *config.SubCommands
-	rootCmd     = &cobra.Command{
+	cmdFlags *config.Flags
+	rootCmd  = &cobra.Command{
 		Use:   appName,
 		Short: shortAppDesc,
 		RunE:  run,
@@ -27,6 +26,7 @@ var (
 )
 
 func run(cmd *cobra.Command, args []string) error {
+
 	if err := config.InitLogLocs(); err != nil {
 		return err
 	}
@@ -61,17 +61,15 @@ func (e flagError) Error() string {
 
 func init() {
 	if err := config.InitLogLocs(); err != nil {
-		fmt.Printf("fail init logs location %s\n", err)
+		fmt.Printf("fail initContainer logs location %s\n", err)
 	}
 	rootCmd.SetFlagErrorFunc(func(command *cobra.Command, err error) error {
 		return flagError{err: err}
 	})
 	rootCmd.AddCommand(versionCmd())
-	initSubCommand()
-	initFlags()
-}
-func initSubCommand() {
 	rootCmd.AddCommand(listContainer())
+	rootCmd.AddCommand(initContainerFlags())
+	initFlags()
 }
 
 func initFlags() {

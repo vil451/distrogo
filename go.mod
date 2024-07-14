@@ -4,6 +4,8 @@ go 1.20
 
 require (
 	github.com/docker/docker v25.0.4+incompatible
+	github.com/enescakir/emoji v1.0.0
+	github.com/fatih/color v1.17.0
 	github.com/spf13/cobra v1.8.0
 )
 
@@ -35,8 +37,8 @@ require (
 require (
 	github.com/adrg/xdg v0.4.0
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
-	golang.org/x/sys v0.17.0 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
+	golang.org/x/sys v0.18.0 // indirect
 )
 
 require (

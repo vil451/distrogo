@@ -21,7 +21,11 @@ var (
 	rootCmd  = &cobra.Command{
 		Use:   appName,
 		Short: shortAppDesc,
-		RunE:  run,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				cmd.Help()
+			}
+		},
 	}
 )
 

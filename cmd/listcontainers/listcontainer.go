@@ -1,10 +1,9 @@
-package cmd
+package listcontainers
 
 import (
 	"context"
 	"fmt"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/enescakir/emoji"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -12,15 +11,19 @@ import (
 	"os"
 )
 
-func listContainer() *cobra.Command {
+func ListContainer() *cobra.Command {
 	var containerName string
-
+	var all bool
 	command := &cobra.Command{
 		Use:     "list",
 		Short:   "List containers",
 		Aliases: []string{"ps", "ls"},
 		Run: func(cmd *cobra.Command, args []string) {
-			list(args)
+			if all {
+				listAll()
+			} else {
+				list(containerName)
+			}
 		},
 	}
 
@@ -32,6 +35,13 @@ func listContainer() *cobra.Command {
 		"Name of the container to list",
 	)
 
+	command.Flags().BoolVarP(
+		&all,
+		"all",
+		"a",
+		false,
+		"List all containers",
+	)
 	return command
 }
 
@@ -50,7 +60,19 @@ func closeDockerClient(cli *client.Client) {
 }
 
 func getContainers(ctx context.Context, cli *client.Client) ([]types.Container, error) {
-	containers, err := cli.ContainerList(ctx, container.ListOptions{})
+
+	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return containers, nil
+}
+
+func getAllContainers(ctx context.Context, cli *client.Client) ([]types.Container, error) {
+
+	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{
+		All: true,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +94,23 @@ func renderTable(containers []types.Container) {
 	tableOut.Render()
 }
 
-func list(args []string) {
+func listAll() {
+	ctx := context.Background()
+	cli, err := initDockerClient()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
+		os.Exit(1)
+	}
+	defer closeDockerClient(cli)
+	containers, err := getAllContainers(ctx, cli)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error listing containers: %v\n", err)
+		os.Exit(1)
+	}
+	renderTable(containers)
+}
+
+func list(containerName string) {
 	ctx := context.Background()
 
 	cli, err := initDockerClient()
@@ -87,20 +125,20 @@ func list(args []string) {
 		fmt.Fprintf(os.Stderr, "Error listing containers: %v\n", err)
 		os.Exit(1)
 	}
-	filteredContainers := filterContainersByName(containers, args)
+	filteredContainers := filterContainersByName(containers, containerName)
 
 	renderTable(filteredContainers)
 }
 
-func filterContainersByName(containers []types.Container, args []string) []types.Container {
-	if len(args) == 0 {
+func filterContainersByName(containers []types.Container, name string) []types.Container {
+	if name == "" {
 		return containers
 	}
 
 	var filteredContainers []types.Container
 	for _, cont := range containers {
-		for _, name := range cont.Names {
-			if contains(args, name) {
+		for _, cname := range cont.Names {
+			if cname == name {
 				filteredContainers = append(filteredContainers, cont)
 				break
 			}
@@ -109,19 +147,10 @@ func filterContainersByName(containers []types.Container, args []string) []types
 	return filteredContainers
 }
 
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
-
 func getStatusEmoji(state string) string {
 	switch state {
 	case "running":
-		return emoji.OkHand.Tone(emoji.Light)
+		return emoji.OkHand.String()
 	case "exited":
 		return emoji.Door.String()
 	case "paused":

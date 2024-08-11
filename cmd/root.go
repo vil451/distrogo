@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"distrogo/cmd/listcontainers"
 	"distrogo/internal/config"
 	"errors"
 	"fmt"
@@ -42,7 +43,7 @@ func init() {
 		return flagError{err: err}
 	})
 	rootCmd.AddCommand(versionCmd())
-	rootCmd.AddCommand(listContainer())
+	rootCmd.AddCommand(listcontainers.ListContainer())
 	rootCmd.AddCommand(initContainerFlags())
 	rootCmd.AddCommand(enterContainer())
 	rootCmd.AddCommand(createContainer())

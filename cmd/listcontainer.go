@@ -6,7 +6,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/enescakir/emoji"
-	"github.com/fatih/color"
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -29,9 +29,10 @@ func listContainer() *cobra.Command {
 
 func listContainers(name string) {
 	ctx := context.Background()
-
-	const format = "%s\t%s\t%s\n"
-	color.Blue(format, "ID", "Name", "Status")
+	tableOut := table.NewWriter()
+	tableOut.SetOutputMirror(os.Stdout)
+	tableOut.SetStyle(table.StyleLight)
+	tableOut.AppendHeader(table.Row{"ID", "Name", "Status"})
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		_, err := fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
@@ -54,12 +55,11 @@ func listContainers(name string) {
 
 	for _, cont := range containers {
 		statusEmoji := getStatusEmoji(cont.State)
-		if cont.State != "running" {
-			color.Red(format, cont.ID, cont.Names[0], statusEmoji)
-		} else {
-			fmt.Printf(format, cont.ID, cont.Names[0], statusEmoji)
-		}
+		tableOut.AppendRows([]table.Row{
+			{cont.ID, cont.Names[0], statusEmoji},
+		})
 	}
+	tableOut.Render()
 }
 
 func getStatusEmoji(state string) string {

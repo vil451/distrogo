@@ -2,6 +2,7 @@ package listcontainers
 
 import (
 	"context"
+	"distrogo/cmd/dockerclient"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -45,20 +46,6 @@ func ListContainers() *cobra.Command {
 	return command
 }
 
-func initDockerClient() (*client.Client, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return nil, err
-	}
-	return cli, nil
-}
-
-func closeDockerClient(cli *client.Client) {
-	if err := cli.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error closing client: %v\n", err)
-	}
-}
-
 func getContainers(ctx context.Context, cli *client.Client, all bool) ([]types.Container, error) {
 	options := types.ContainerListOptions{}
 	if all {
@@ -88,12 +75,12 @@ func renderTable(containers []types.Container) {
 
 func listContainers(all bool, containerName string) {
 	ctx := context.Background()
-	cli, err := initDockerClient()
+	cli, err := dockerclient.InitDockerClient()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
 		os.Exit(1)
 	}
-	defer closeDockerClient(cli)
+	defer dockerclient.CloseDockerClient(cli)
 
 	containers, err := getContainers(ctx, cli, all)
 	if err != nil {

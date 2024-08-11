@@ -2,11 +2,8 @@ package cmd
 
 import (
 	"distrogo/internal/config"
-	"distrogo/internal/config/data"
 	"errors"
 	"fmt"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -21,35 +18,13 @@ var (
 	rootCmd  = &cobra.Command{
 		Use:   appName,
 		Short: shortAppDesc,
-		RunE:  run,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				cmd.Help()
+			}
+		},
 	}
 )
-
-func run(cmd *cobra.Command, args []string) error {
-
-	if err := config.InitLogLocs(); err != nil {
-		return err
-	}
-	file, err := os.OpenFile(
-		*cmdFlags.LogFile,
-		os.O_CREATE|os.O_APPEND|os.O_WRONLY,
-		data.DefaultFileMod,
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed %q", *cmdFlags.LogFile, err)
-	}
-
-	if err != nil {
-		if file != nil {
-			_ = file.Close()
-		}
-	}
-
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: file})
-
-	return nil
-}
 
 type flagError struct {
 	err error
@@ -86,7 +61,8 @@ func initFlags() {
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		if !errors.As(err, &flagError{}) {
-			panic(err)
+			fmt.Printf("Execution error: %s\n", err)
+			os.Exit(1)
 		}
 	}
 }

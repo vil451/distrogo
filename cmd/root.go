@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 const (
@@ -60,7 +61,8 @@ func initFlags() {
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		if !errors.As(err, &flagError{}) {
-			panic(err)
+			fmt.Printf("Execution error: %s\n", err)
+			os.Exit(1)
 		}
 	}
 }

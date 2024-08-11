@@ -1,8 +1,8 @@
-package cmd
+package createcontainers
 
 import "github.com/spf13/cobra"
 
-func createContainer() *cobra.Command {
+func CreateContainer() *cobra.Command {
 	var containerName string
 	command := &cobra.Command{
 		Use:     "create",

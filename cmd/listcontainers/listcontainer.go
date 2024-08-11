@@ -11,7 +11,7 @@ import (
 	"os"
 )
 
-func ListContainer() *cobra.Command {
+func ListContainers() *cobra.Command {
 	var containerName string
 	var all bool
 	command := &cobra.Command{

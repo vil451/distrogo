@@ -43,7 +43,7 @@ func init() {
 		return flagError{err: err}
 	})
 	rootCmd.AddCommand(versionCmd())
-	rootCmd.AddCommand(listcontainers.ListContainer())
+	rootCmd.AddCommand(listcontainers.ListContainers())
 	rootCmd.AddCommand(initContainerFlags())
 	rootCmd.AddCommand(enterContainer())
 	rootCmd.AddCommand(createContainer())

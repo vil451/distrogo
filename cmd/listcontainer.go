@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/enescakir/emoji"
@@ -19,39 +20,48 @@ func listContainer() *cobra.Command {
 		Short:   "List containers",
 		Aliases: []string{"ps", "ls"},
 		Run: func(cmd *cobra.Command, args []string) {
-			listContainers(containerName)
+			list(args)
 		},
 	}
 
-	command.Flags().StringVarP(&containerName, "name", "n", "", "Name of the container to list")
+	command.Flags().StringVarP(
+		&containerName,
+		"name",
+		"n",
+		"",
+		"Name of the container to list",
+	)
+
 	return command
 }
 
-func listContainers(name string) {
-	ctx := context.Background()
+func initDockerClient() (*client.Client, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return nil, err
+	}
+	return cli, nil
+}
+
+func closeDockerClient(cli *client.Client) {
+	if err := cli.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error closing client: %v\n", err)
+	}
+}
+
+func getContainers(ctx context.Context, cli *client.Client) ([]types.Container, error) {
+	containers, err := cli.ContainerList(ctx, container.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return containers, nil
+}
+
+func renderTable(containers []types.Container) {
 	tableOut := table.NewWriter()
 	tableOut.SetOutputMirror(os.Stdout)
 	tableOut.SetStyle(table.StyleLight)
 	tableOut.AppendHeader(table.Row{"ID", "Name", "Status"})
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		_, err := fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
-		if err != nil {
-			return
-		}
-		os.Exit(1)
-	}
-	defer func(cli *client.Client) {
-		err := cli.Close()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error closing client: %v\n", err)
-		}
-	}(cli)
-
-	containers, err := cli.ContainerList(ctx, container.ListOptions{})
-	if err != nil {
-		panic(err)
-	}
 
 	for _, cont := range containers {
 		statusEmoji := getStatusEmoji(cont.State)
@@ -60,6 +70,52 @@ func listContainers(name string) {
 		})
 	}
 	tableOut.Render()
+}
+
+func list(args []string) {
+	ctx := context.Background()
+
+	cli, err := initDockerClient()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
+		os.Exit(1)
+	}
+	defer closeDockerClient(cli)
+
+	containers, err := getContainers(ctx, cli)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error listing containers: %v\n", err)
+		os.Exit(1)
+	}
+	filteredContainers := filterContainersByName(containers, args)
+
+	renderTable(filteredContainers)
+}
+
+func filterContainersByName(containers []types.Container, args []string) []types.Container {
+	if len(args) == 0 {
+		return containers
+	}
+
+	var filteredContainers []types.Container
+	for _, cont := range containers {
+		for _, name := range cont.Names {
+			if contains(args, name) {
+				filteredContainers = append(filteredContainers, cont)
+				break
+			}
+		}
+	}
+	return filteredContainers
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 
 func getStatusEmoji(state string) string {

@@ -15,7 +15,9 @@ func init() {
 func initContainerFlags() *cobra.Command {
 	initCommandFlags = initContainer.NewFlags()
 	command := cobra.Command{
-		Use: "init",
+		Use:     "init",
+		Short:   "Init Distrogo",
+		Aliases: []string{"i"},
 		Run: func(cmd *cobra.Command, args []string) {
 			initContainerArgs(cmd, args)
 		},

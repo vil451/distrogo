@@ -20,9 +20,9 @@ func ListContainer() *cobra.Command {
 		Aliases: []string{"ps", "ls"},
 		Run: func(cmd *cobra.Command, args []string) {
 			if all {
-				listAll()
+				listContainers(true, "")
 			} else {
-				list(containerName)
+				listContainers(false, containerName)
 			}
 		},
 	}
@@ -59,20 +59,12 @@ func closeDockerClient(cli *client.Client) {
 	}
 }
 
-func getContainers(ctx context.Context, cli *client.Client) ([]types.Container, error) {
-
-	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{})
-	if err != nil {
-		return nil, err
+func getContainers(ctx context.Context, cli *client.Client, all bool) ([]types.Container, error) {
+	options := types.ContainerListOptions{}
+	if all {
+		options.All = true
 	}
-	return containers, nil
-}
-
-func getAllContainers(ctx context.Context, cli *client.Client) ([]types.Container, error) {
-
-	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{
-		All: true,
-	})
+	containers, err := cli.ContainerList(ctx, options)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +86,7 @@ func renderTable(containers []types.Container) {
 	tableOut.Render()
 }
 
-func listAll() {
+func listContainers(all bool, containerName string) {
 	ctx := context.Background()
 	cli, err := initDockerClient()
 	if err != nil {
@@ -102,32 +94,18 @@ func listAll() {
 		os.Exit(1)
 	}
 	defer closeDockerClient(cli)
-	containers, err := getAllContainers(ctx, cli)
+
+	containers, err := getContainers(ctx, cli, all)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error listing containers: %v\n", err)
 		os.Exit(1)
 	}
+
+	if !all {
+		containers = filterContainersByName(containers, containerName)
+	}
+
 	renderTable(containers)
-}
-
-func list(containerName string) {
-	ctx := context.Background()
-
-	cli, err := initDockerClient()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
-		os.Exit(1)
-	}
-	defer closeDockerClient(cli)
-
-	containers, err := getContainers(ctx, cli)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error listing containers: %v\n", err)
-		os.Exit(1)
-	}
-	filteredContainers := filterContainersByName(containers, containerName)
-
-	renderTable(filteredContainers)
 }
 
 func filterContainersByName(containers []types.Container, name string) []types.Container {

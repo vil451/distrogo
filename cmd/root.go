@@ -44,6 +44,12 @@ func init() {
 	rootCmd.AddCommand(versionCmd())
 	rootCmd.AddCommand(listContainer())
 	rootCmd.AddCommand(initContainerFlags())
+	rootCmd.AddCommand(enterContainer())
+	rootCmd.AddCommand(createContainer())
+	rootCmd.AddCommand(assembleConatiner())
+	rootCmd.AddCommand(stopContainer())
+	rootCmd.AddCommand(upgradeContainer())
+	//rootCmd.AddCommand(ephemeralConatiner())
 	initFlags()
 }
 

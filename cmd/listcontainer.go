@@ -29,10 +29,16 @@ func listContainer() *cobra.Command {
 
 func listContainers(name string) {
 	ctx := context.Background()
+
 	const format = "%s\t%s\t%s\n"
+	color.Blue(format, "ID", "Name", "Status")
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		panic(err)
+		_, err := fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
+		if err != nil {
+			return
+		}
+		os.Exit(1)
 	}
 	defer func(cli *client.Client) {
 		err := cli.Close()

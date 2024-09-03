@@ -15,15 +15,16 @@ import (
 func ListContainers() *cobra.Command {
 	var containerName string
 	var all bool
+	var status string
 	command := &cobra.Command{
 		Use:     "list",
 		Short:   "List containers",
 		Aliases: []string{"ps", "ls"},
 		Run: func(cmd *cobra.Command, args []string) {
 			if all {
-				listContainers(true, "")
+				listContainers(true, "", "")
 			} else {
-				listContainers(false, containerName)
+				listContainers(false, containerName, status)
 			}
 		},
 	}
@@ -42,6 +43,15 @@ func ListContainers() *cobra.Command {
 		"a",
 		false,
 		"List all containers",
+	)
+
+	// флаг для фильтрации по статусу
+	command.Flags().StringVarP(
+		&status,
+		"status",
+		"s",
+		"",
+		"Status of the containers to list",
 	)
 	return command
 }
@@ -73,7 +83,8 @@ func renderTable(containers []types.Container) {
 	tableOut.Render()
 }
 
-func listContainers(all bool, containerName string) {
+// функция listContainers выводит список контейнеров с учетом фильтров
+func listContainers(all bool, containerName string, status string) {
 	ctx := context.Background()
 	cli, err := dockerclient.InitDockerClient()
 	if err != nil {
@@ -92,6 +103,11 @@ func listContainers(all bool, containerName string) {
 		containers = filterContainersByName(containers, containerName)
 	}
 
+	// если статус указан, фильтруем контейнеры по статусу
+	if status != "" {
+		containers = filterContainersByStatus(containers, status)
+	}
+
 	renderTable(containers)
 }
 
@@ -107,6 +123,17 @@ func filterContainersByName(containers []types.Container, name string) []types.C
 				filteredContainers = append(filteredContainers, cont)
 				break
 			}
+		}
+	}
+	return filteredContainers
+}
+
+// функция для фильтрации контейнеров по статусу
+func filterContainersByStatus(containers []types.Container, status string) []types.Container {
+	var filteredContainers []types.Container
+	for _, cont := range containers {
+		if cont.State == status {
+			filteredContainers = append(filteredContainers, cont)
 		}
 	}
 	return filteredContainers

@@ -72,12 +72,12 @@ func renderTable(containers []types.Container) {
 	tableOut := table.NewWriter()
 	tableOut.SetOutputMirror(os.Stdout)
 	tableOut.SetStyle(table.StyleLight)
-	tableOut.AppendHeader(table.Row{"ID", "Name", "Image", "Status", "Status code"})
+	tableOut.AppendHeader(table.Row{"ID", "Name", "ImageNAme", "Status", "Status code"})
 
 	for _, cont := range containers {
 		statusEmoji := getStatusEmoji(cont.State)
 		tableOut.AppendRows([]table.Row{
-			{cont.ID, cont.Names[0], cont.ImageID, statusEmoji, cont.Status},
+			{cont.ID, cont.Names[0], cont.Image, statusEmoji, cont.Status},
 		})
 	}
 	tableOut.Render()

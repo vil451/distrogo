@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"distrogo/cmd/createcontainers"
+	"distrogo/cmd/entercontainer"
 	"distrogo/cmd/listcontainers"
 	"distrogo/internal/config"
 	"errors"
@@ -46,7 +47,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd())
 	rootCmd.AddCommand(listcontainers.ListContainers())
 	rootCmd.AddCommand(initContainerFlags())
-	rootCmd.AddCommand(enterContainer())
+	rootCmd.AddCommand(entercontainer.EnterContainer())
 	rootCmd.AddCommand(createcontainers.CreateContainer())
 	rootCmd.AddCommand(assembleConatiner())
 	rootCmd.AddCommand(stopContainer())

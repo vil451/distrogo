@@ -130,7 +130,10 @@ func create(image string, containerName string, pull bool) {
 		return
 	}
 
-	_, err = createContainer(ctx, cli, image, containerName)
+	labels := map[string]string{
+		"manager": "distrogo",
+	}
+	_, err = createContainer(ctx, cli, image, containerName, labels)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating container: %v\n", err)
 		os.Exit(1)
@@ -156,11 +159,12 @@ func pullImage(ctx context.Context, cli *client.Client, name string) (io.ReadClo
 	return resp, nil
 }
 
-func createContainer(ctx context.Context, cli *client.Client, image string, name string) (container.CreateResponse, error) {
+func createContainer(ctx context.Context, cli *client.Client, image string, name string, labels map[string]string) (container.CreateResponse, error) {
 	//options := types.ContainerListOptions{}
 	config := &container.Config{
-		Image: image,
-		Cmd:   []string{"echo", "Hello, World!"},
+		Image:  image,
+		Labels: labels,
+		Cmd:    []string{"echo", "Hello, World!"},
 	}
 	hostConfig := &container.HostConfig{}
 	resp, err := cli.ContainerCreate(ctx, config, hostConfig, nil, nil, name)

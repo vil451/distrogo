@@ -91,19 +91,27 @@ func listContainers(all bool, containerName string, status string) {
 		fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
 		os.Exit(1)
 	}
-	defer dockerclient.CloseDockerClient(cli)
+	defer func() {
+		if err := dockerclient.CloseDockerClient(cli); err != nil {
+			fmt.Fprintf(os.Stderr, "Error closing Docker client: %v\n", err)
+		}
+	}()
 
 	containers, err := getContainers(ctx, cli, all)
+	containers = filterContainersByLabel(containers, "manager", "distrogo")
+	
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error listing containers: %v\n", err)
 		os.Exit(1)
 	}
 
+	// Если all == false, фильтруем контейнеры по имени и метке "manager=distrogo"
 	if !all {
 		containers = filterContainersByName(containers, containerName)
+
 	}
 
-	// если статус указан, фильтруем контейнеры по статусу
+	// Если статус указан, фильтруем контейнеры по статусу
 	if status != "" {
 		containers = filterContainersByStatus(containers, status)
 	}
@@ -126,6 +134,16 @@ func filterContainersByName(containers []types.Container, name string) []types.C
 		}
 	}
 	return filteredContainers
+}
+
+func filterContainersByLabel(containers []types.Container, labelKey string, labelValue string) []types.Container {
+	var filtered []types.Container
+	for _, container := range containers {
+		if val, ok := container.Labels[labelKey]; ok && val == labelValue {
+			filtered = append(filtered, container)
+		}
+	}
+	return filtered
 }
 
 // функция для фильтрации контейнеров по статусу

@@ -56,7 +56,7 @@ func ListContainers() *cobra.Command {
 	return command
 }
 
-func getContainers(ctx context.Context, cli *client.Client, all bool) ([]types.Container, error) {
+func GetContainers(ctx context.Context, cli *client.Client, all bool) ([]types.Container, error) {
 	options := types.ContainerListOptions{}
 	if all {
 		options.All = true
@@ -77,7 +77,7 @@ func renderTable(containers []types.Container) {
 	for _, cont := range containers {
 		statusEmoji := getStatusEmoji(cont.State)
 		tableOut.AppendRows([]table.Row{
-			{cont.ID, cont.Names[0], cont.Image, statusEmoji, cont.Status},
+			{cont.ID, cont.Names[0][1:], cont.Image, statusEmoji, cont.Status},
 		})
 	}
 	tableOut.Render()
@@ -97,9 +97,9 @@ func listContainers(all bool, containerName string, status string) {
 		}
 	}()
 
-	containers, err := getContainers(ctx, cli, all)
-	containers = filterContainersByLabel(containers, "manager", "distrogo")
-	
+	containers, err := GetContainers(ctx, cli, all)
+	containers = FilterContainersByLabel(containers, "manager", "distrogo")
+
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error listing containers: %v\n", err)
 		os.Exit(1)
@@ -136,7 +136,7 @@ func filterContainersByName(containers []types.Container, name string) []types.C
 	return filteredContainers
 }
 
-func filterContainersByLabel(containers []types.Container, labelKey string, labelValue string) []types.Container {
+func FilterContainersByLabel(containers []types.Container, labelKey string, labelValue string) []types.Container {
 	var filtered []types.Container
 	for _, container := range containers {
 		if val, ok := container.Labels[labelKey]; ok && val == labelValue {

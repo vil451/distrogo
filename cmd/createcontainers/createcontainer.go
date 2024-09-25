@@ -108,7 +108,7 @@ func create(image string, containerName string, pull bool) {
 		fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
 		os.Exit(1)
 	}
-	//defer dockerclient.CloseDockerClient(cli)
+
 	defer func() {
 		if err := dockerclient.CloseDockerClient(cli); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to close Docker client: %v\n", err)

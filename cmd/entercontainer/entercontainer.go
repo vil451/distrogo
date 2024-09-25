@@ -2,10 +2,10 @@ package entercontainer
 
 import (
 	"context"
+	"distrogo/cmd/dockerclient"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/strslice"
-	"github.com/docker/docker/client"
 	"github.com/spf13/cobra"
 	"os"
 )
@@ -52,7 +52,7 @@ func enter(containerName string) {
 	}
 
 	ctx := context.Background()
-	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	cli, err := dockerclient.InitDockerClient()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
 		os.Exit(1)

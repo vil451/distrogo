@@ -164,9 +164,11 @@ func pullImage(ctx context.Context, cli *client.Client, name string) (io.ReadClo
 func createContainer(ctx context.Context, cli *client.Client, image string, name string, labels map[string]string) (container.CreateResponse, error) {
 	//options := types.ContainerListOptions{}
 	config := &container.Config{
-		Image:  image,
-		Labels: labels,
-		Cmd:    []string{"echo", "Hello, World!"},
+		Image:     image,
+		Labels:    labels,
+		Cmd:       []string{"/bin/bash"},
+		Tty:       true,
+		OpenStdin: true,
 	}
 	hostConfig := &container.HostConfig{}
 	resp, err := cli.ContainerCreate(ctx, config, hostConfig, nil, nil, name)

@@ -6,6 +6,7 @@ import (
 	"distrogo/cmd/listcontainers"
 	"fmt"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	"github.com/spf13/cobra"
@@ -97,20 +98,29 @@ func runContainer(ctx context.Context, cli *client.Client, containerName string)
 		fmt.Fprintf(os.Stderr, "Error creating exec instance: %v\n", err)
 		os.Exit(1)
 	}
+
 	containers = listcontainers.FilterContainersByLabel(containers, "manager", "distrogo")
 	result_container_id := ""
+	state := ""
 	for _, container := range containers {
 		if container.Names[0][1:] == containerName {
 			result_container_id = container.ID
+			state = container.State
 		}
+	}
+	if state == "running" {
+		return nil
 	}
 	if result_container_id == "" {
 		fmt.Fprintf(os.Stderr, "container not found: %s", containerName)
 		os.Exit(1)
 	}
-	// Запуск контейнера
 
-	if err := cli.ContainerStart(ctx, result_container_id, types.ContainerStartOptions{}); err != nil {
+	// Опции для запуска контейнера
+	startOptions := container.StartOptions{}
+
+	// Запуск контейнера
+	if err := cli.ContainerStart(ctx, result_container_id, startOptions); err != nil {
 		return fmt.Errorf("error starting container: %v", err)
 	}
 

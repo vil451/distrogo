@@ -3,7 +3,6 @@ package dockerclient
 import (
 	"fmt"
 	"github.com/docker/docker/client"
-	"os"
 )
 
 func InitDockerClient() (*client.Client, error) {
@@ -14,8 +13,9 @@ func InitDockerClient() (*client.Client, error) {
 	return cli, nil
 }
 
-func CloseDockerClient(cli *client.Client) {
+func CloseDockerClient(cli *client.Client) error {
 	if err := cli.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error closing client: %v\n", err)
+		return fmt.Errorf("error closing Docker client: %w", err)
 	}
+	return nil
 }

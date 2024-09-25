@@ -108,7 +108,12 @@ func create(image string, containerName string, pull bool) {
 		fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
 		os.Exit(1)
 	}
-	defer dockerclient.CloseDockerClient(cli)
+	//defer dockerclient.CloseDockerClient(cli)
+	defer func() {
+		if err := dockerclient.CloseDockerClient(cli); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to close Docker client: %v\n", err)
+		}
+	}()
 
 	if containerName == "" {
 		containerName = generateContainerName()
@@ -130,20 +135,6 @@ func create(image string, containerName string, pull bool) {
 		fmt.Fprintf(os.Stderr, "Error creating container: %v\n", err)
 		os.Exit(1)
 	}
-
-	_, err = runContainer(ctx, cli, containerName)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error running container: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func runContainer(ctx context.Context, cli *client.Client, name string) (interface{}, error) {
-	if err := cli.ContainerStart(ctx, name, container.StartOptions{}); err != nil {
-		fmt.Fprintf(os.Stderr, "Error starting container: %v\n", err)
-		return nil, err
-	}
-	return cli.ContainerInspect(ctx, name)
 }
 
 func pullImage(ctx context.Context, cli *client.Client, name string) (io.ReadCloser, error) {

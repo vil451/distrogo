@@ -138,6 +138,8 @@ func create(image string, containerName string, pull bool) {
 		fmt.Fprintf(os.Stderr, "Error creating container: %v\n", err)
 		os.Exit(1)
 	}
+
+	fmt.Printf("Created container: %s\n To enter run: \ndistrogo enter %s\n", containerName, containerName)
 }
 
 func pullImage(ctx context.Context, cli *client.Client, name string) (io.ReadCloser, error) {

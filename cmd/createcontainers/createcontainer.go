@@ -109,23 +109,20 @@ func create(image string, containerName string, pull bool) {
 		os.Exit(1)
 	}
 	defer dockerclient.CloseDockerClient(cli)
+
 	if containerName == "" {
 		containerName = generateContainerName()
 	}
+
 	if pull {
 		_, err := pullImage(ctx, cli, image)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error pulling image: %v\n", err)
+			os.Exit(1)
 		}
-	} else {
-		if isImageAvailableLocally(ctx, cli, image) {
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error createing container image: %v\n", err)
-			}
-		} else {
-			fmt.Fprintf(os.Stderr, "Image not foung, add --pull options for pulling!")
-			return
-		}
+	} else if !isImageAvailableLocally(ctx, cli, image) {
+		fmt.Fprintf(os.Stderr, "Image not found, add --pull options for pulling!\n")
+		return
 	}
 
 	_, err = createContainer(ctx, cli, image, containerName)
@@ -139,7 +136,6 @@ func create(image string, containerName string, pull bool) {
 		fmt.Fprintf(os.Stderr, "Error running container: %v\n", err)
 		os.Exit(1)
 	}
-	//status, errCheck := cli.ContainerWait(ctx, )
 }
 
 func runContainer(ctx context.Context, cli *client.Client, name string) (interface{}, error) {
@@ -156,12 +152,10 @@ func pullImage(ctx context.Context, cli *client.Client, name string) (io.ReadClo
 	}
 	resp, err := cli.ImagePull(ctx, config.Image, types.ImagePullOptions{})
 	if err != nil {
-		_, err := fmt.Fprintf(os.Stderr, "Error pulling image: %v\n", err)
-		if err != nil {
-			return nil, err
-		}
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "Error pulling image: %v\n", err)
+		return nil, err
 	}
+	defer resp.Close()
 
 	_, err = io.Copy(os.Stdout, resp)
 	if err != nil {

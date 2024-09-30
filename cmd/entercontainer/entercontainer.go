@@ -1,8 +1,8 @@
 package entercontainer
 
 import (
+	"bufio"
 	"context"
-	"distrogo/cmd/dockerclient"
 	"distrogo/cmd/listcontainers"
 	"fmt"
 	"github.com/docker/docker/api/types"
@@ -13,6 +13,8 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
+	"sync"
 	"syscall"
 )
 
@@ -23,9 +25,8 @@ func EnterContainer() *cobra.Command {
 		Use:     "enter [container name]",
 		Short:   "Enter container",
 		Aliases: []string{"e"},
-		Args:    cobra.MaximumNArgs(1), // Ожидаем максимум 1 позиционный аргумент
+		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			// Если имя контейнера передано как позиционный аргумент, использовать его
 			if len(args) > 0 {
 				containerName = args[0]
 			}
@@ -39,7 +40,6 @@ func EnterContainer() *cobra.Command {
 		},
 	}
 
-	// Добавляем флаг для указания контейнера
 	command.Flags().StringVarP(
 		&containerName,
 		"container",
@@ -57,20 +57,21 @@ func enter(containerName string) {
 		os.Exit(1)
 	}
 
-	ctx := context.Background()
-	cli, err := dockerclient.InitDockerClient()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
 		os.Exit(1)
 	}
+	defer cli.Close()
 
 	err = runContainer(ctx, cli, containerName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error run container: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error running container: %v\n", err)
 		os.Exit(1)
 	}
-
-	defer cli.Close()
 
 	execConfig := types.ExecConfig{
 		Cmd:          strslice.StrSlice([]string{"/bin/sh"}),
@@ -86,83 +87,125 @@ func enter(containerName string) {
 		os.Exit(1)
 	}
 
-	// Подключаемся к сессии
 	attachResp, err := cli.ContainerExecAttach(ctx, execIDResp.ID, types.ExecStartCheck{Tty: true})
 	if err != nil {
-		fmt.Println("Ошибка при подключении к exec сессии:", err)
+		fmt.Println("Error attaching to exec session:", err)
 		os.Exit(1)
 	}
 	defer attachResp.Close()
 
-	err = cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{Tty: true})
-	if err != nil {
-		fmt.Println("Ошибка при запуске команды в exec сессии:", err)
-		os.Exit(1)
-	}
+	// Канал для завершения горутин
+	done := make(chan struct{})
+	var once sync.Once
+	var wg sync.WaitGroup
 
+	// Канал для обработки системных сигналов
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	// Запуск интерактивного сеанса внутри контейнера
-	err = cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{Tty: true})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error starting exec instance: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Горутин для передачи вывода контейнера в stdout
+	// Горутина для передачи вывода контейнера в stdout
+	wg.Add(1)
 	go func() {
-		_, err = io.Copy(os.Stdout, attachResp.Reader)
+		defer wg.Done()
+		_, err := io.Copy(os.Stdout, attachResp.Reader)
 		if err != nil && err != io.EOF {
 			fmt.Fprintf(os.Stderr, "Error reading output: %v\n", err)
 		}
+		// Завершение работы
+		once.Do(func() {
+			close(done)
+		})
 	}()
 
-	// Горутин для передачи ввода пользователя в контейнер
+	// Обработка пользовательского ввода
+	reader := bufio.NewReader(os.Stdin)
+
+	wg.Add(1)
 	go func() {
-		_, err = io.Copy(attachResp.Conn, os.Stdin)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error passing input: %v\n", err)
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				input, err := reader.ReadString('\n')
+				if err == io.EOF {
+					fmt.Println("\nExiting container session (Ctrl+D)...")
+					once.Do(func() {
+						close(done)
+					})
+					return
+				}
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+					continue
+				}
+
+				trimmedInput := strings.TrimSpace(input)
+				if trimmedInput == "exit" {
+					fmt.Println("Exiting container session (exit)...")
+					once.Do(func() {
+						close(done)
+					})
+					return
+				}
+
+				// Обработка записи в контейнер
+				_, err = io.WriteString(attachResp.Conn, input)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error writing input: %v\n", err)
+					// Завершение по ошибке записи
+					once.Do(func() {
+						close(done)
+					})
+					return
+				}
+			}
 		}
 	}()
+	// Ожидание завершения программы по системному сигналу или пользовательскому вводу
+	select {
+	case <-done:
+		cancel()
+	case sig := <-sigs:
+		fmt.Printf("Received signal: %v. Exiting...\n", sig)
+		once.Do(func() {
+			close(done)
+		})
+		cancel()
+	}
 
-	// Ожидание завершения программы по сигналу
-	<-sigs
-
+	// Ожидание завершения всех горутин
+	wg.Wait()
+	fmt.Println("Session terminated.")
 }
 
 func runContainer(ctx context.Context, cli *client.Client, containerName string) error {
 	containers, err := listcontainers.GetContainers(ctx, cli, true)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating exec instance: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("Error listing containers: %v", err)
 	}
 
 	containers = listcontainers.FilterContainersByLabel(containers, "manager", "distrogo")
-	result_container_id := ""
-	state := ""
+	var resultContainerID, state string
 	for _, container := range containers {
 		if container.Names[0][1:] == containerName {
-			result_container_id = container.ID
+			resultContainerID = container.ID
 			state = container.State
 		}
 	}
 	if state == "running" {
 		return nil
 	}
-	if result_container_id == "" {
-		fmt.Fprintf(os.Stderr, "container not found: %s", containerName)
-		os.Exit(1)
+	if resultContainerID == "" {
+		return fmt.Errorf("container not found: %s", containerName)
 	}
 
-	// Опции для запуска контейнера
 	startOptions := container.StartOptions{}
-
-	// Запуск контейнера
-	if err := cli.ContainerStart(ctx, result_container_id, startOptions); err != nil {
-		return fmt.Errorf("error starting container: %v", err)
+	if err := cli.ContainerStart(ctx, resultContainerID, startOptions); err != nil {
+		return fmt.Errorf("Error starting container: %v", err)
 	}
 
-	fmt.Printf("Container %s is started with ID: %s\n", containerName, result_container_id)
+	fmt.Printf("Container %s is started with ID: %s\n", containerName, resultContainerID)
 	return nil
 }

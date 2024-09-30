@@ -10,7 +10,10 @@ import (
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	"github.com/spf13/cobra"
+	"io"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 func EnterContainer() *cobra.Command {
@@ -70,8 +73,7 @@ func enter(containerName string) {
 	defer cli.Close()
 
 	execConfig := types.ExecConfig{
-		User:         "root",
-		Cmd:          strslice.StrSlice([]string{"/bin/bash"}),
+		Cmd:          strslice.StrSlice([]string{"/bin/sh"}),
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
@@ -84,12 +86,49 @@ func enter(containerName string) {
 		os.Exit(1)
 	}
 
+	// Подключаемся к сессии
+	attachResp, err := cli.ContainerExecAttach(ctx, execIDResp.ID, types.ExecStartCheck{Tty: true})
+	if err != nil {
+		fmt.Println("Ошибка при подключении к exec сессии:", err)
+		os.Exit(1)
+	}
+	defer attachResp.Close()
+
+	err = cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{Tty: true})
+	if err != nil {
+		fmt.Println("Ошибка при запуске команды в exec сессии:", err)
+		os.Exit(1)
+	}
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	// Запуск интерактивного сеанса внутри контейнера
 	err = cli.ContainerExecStart(ctx, execIDResp.ID, types.ExecStartCheck{Tty: true})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error starting exec instance: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Горутин для передачи вывода контейнера в stdout
+	go func() {
+		_, err = io.Copy(os.Stdout, attachResp.Reader)
+		if err != nil && err != io.EOF {
+			fmt.Fprintf(os.Stderr, "Error reading output: %v\n", err)
+		}
+	}()
+
+	// Горутин для передачи ввода пользователя в контейнер
+	go func() {
+		_, err = io.Copy(attachResp.Conn, os.Stdin)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error passing input: %v\n", err)
+		}
+	}()
+
+	// Ожидание завершения программы по сигналу
+	<-sigs
+
 }
 
 func runContainer(ctx context.Context, cli *client.Client, containerName string) error {

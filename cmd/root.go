@@ -4,6 +4,7 @@ import (
 	"distrogo/cmd/createcontainers"
 	"distrogo/cmd/entercontainer"
 	"distrogo/cmd/listcontainers"
+	"distrogo/cmd/removecontainer"
 	"distrogo/internal/config"
 	"errors"
 	"fmt"
@@ -52,6 +53,7 @@ func init() {
 	rootCmd.AddCommand(assembleConatiner())
 	rootCmd.AddCommand(stopContainer())
 	rootCmd.AddCommand(upgradeContainer())
+	rootCmd.AddCommand(removecontainer.RemoveContainer())
 	//rootCmd.AddCommand(ephemeralConatiner())
 	initFlags()
 }

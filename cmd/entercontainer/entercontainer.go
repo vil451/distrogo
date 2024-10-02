@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 )
 
@@ -97,23 +96,18 @@ func enter(containerName string) {
 
 	tty.NewTTY(ctx, attachResp.Conn, attachResp.Reader, detach)
 
-	var wg sync.WaitGroup
 	// Канал для обработки системных сигналов
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		select {
-		case <-ctx.Done():
-			return
-		case sig := <-sigs:
-			fmt.Printf("Received signal: %v. Exiting...\n", sig)
-			detach(nil)
-		}
-	}()
 
-	wg.Wait()
+	select {
+	case <-ctx.Done():
+		return
+	case sig := <-sigs:
+		fmt.Printf("\nReceived signal: %v. Exiting...\n", sig)
+		detach(nil)
+	}
+
 	fmt.Println("Session terminated.")
 }
 

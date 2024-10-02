@@ -42,9 +42,9 @@ func EnterContainer() *cobra.Command {
 
 	command.Flags().StringVarP(
 		&containerName,
-		"container",
-		"c",
-		"",
+		"name",
+		"n",
+		containerName,
 		"container name",
 	)
 

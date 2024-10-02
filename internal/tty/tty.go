@@ -23,7 +23,7 @@ const (
 )
 
 type cancelableReader interface {
-	Read(p []byte) (int, error)
+	Read() ([]byte, error)
 }
 
 type DetachCallback func(err error)
@@ -57,8 +57,7 @@ func (t *TTY) writeRoutine() {
 		case <-t.ctx.Done():
 			return
 		default:
-			data := make([]byte, cancelable_reader.MaxBufSize)
-			_, errRead := t.inputReader.Read(data)
+			data, errRead := t.inputReader.Read()
 			if errRead != nil {
 				logger.Debug(errors.Wrap(errors.Wrap(errRead, ErrReadInput), Err))
 				t.onDetachCallback(errRead)
@@ -79,20 +78,20 @@ func (t *TTY) readRoutine() {
 		case <-t.ctx.Done():
 			return
 		default:
-			data := make([]byte, cancelable_reader.MaxBufSize)
-			_, errRead := t.outputReader.Read(data)
+			data, errRead := t.outputReader.Read()
 			if errRead != nil {
-				logger.Debug(errors.Wrap(errors.Wrap(errRead, ErrReadOutput), Err))
-
 				if errors.Is(errRead, io.EOF) {
-					t.writeToOutput("Exiting container session (Ctrl+D)...")
+					t.writeToOutput("\nExiting container session (Ctrl+D)...\n")
+					t.onDetachCallback(errRead)
+					return
 				}
 
+				logger.Error(errors.Wrap(errors.Wrap(errRead, ErrReadOutput), Err))
 				t.onDetachCallback(errRead)
 				return
 			}
 
-			dataString := strings.TrimSuffix(string(data), "\n")
+			dataString := string(data)
 			if t.parseCommand(dataString) {
 				return
 			}
@@ -107,10 +106,10 @@ func (t *TTY) readRoutine() {
 }
 
 func (t *TTY) parseCommand(command string) bool {
-	trimmedCommand := strings.TrimSpace(command)
+	trimmedCommand := strings.TrimSpace(strings.TrimPrefix(command, "\n"))
 	switch trimmedCommand {
 	case commandDetach:
-		t.writeToOutput("Exiting container session (detach)...")
+		t.writeToOutput("Exiting container session (detach)...\n")
 		t.onDetachCallback(nil)
 		return true
 	default:

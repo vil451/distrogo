@@ -18,7 +18,7 @@ import (
 )
 
 func EnterContainer() *cobra.Command {
-	logger.SetLogLevel(logger.LogLevelDebug)
+	logger.SetLogLevel(logger.LogLevelError)
 
 	var containerName string
 

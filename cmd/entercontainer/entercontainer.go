@@ -1,26 +1,25 @@
 package entercontainer
 
 import (
-	"bufio"
 	"context"
 	"distrogo/cmd/listcontainers"
-	"distrogo/internal/cancelable_reader"
-	"errors"
+	"distrogo/internal/logger"
+	"distrogo/internal/tty"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	"github.com/spf13/cobra"
-	"io"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 )
 
 func EnterContainer() *cobra.Command {
+	logger.SetLogLevel(logger.LogLevelDebug)
+
 	var containerName string
 
 	command := &cobra.Command{
@@ -88,70 +87,17 @@ func enter(containerName string) {
 		return
 	}
 
-	ttyReader := cancelable_reader.New(ctx, attachResp.Reader)
-
-	detach := func() {
+	detach := func(err error) {
+		if err != nil {
+			logger.Debug(err)
+		}
 		ctxCancel()
 		attachResp.Close()
 	}
 
+	tty.NewTTY(ctx, attachResp.Conn, attachResp.Reader, detach)
+
 	var wg sync.WaitGroup
-
-	// Горутина для передачи вывода контейнера в stdout
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				data := make([]byte, 1024)
-				_, errRead := ttyReader.Read(data)
-				if errRead != nil {
-					detach()
-				}
-				fmt.Printf("%s", string(data))
-			}
-		}
-	}()
-
-	// Обработка пользовательского ввода
-	reader := bufio.NewReader(os.Stdin)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				input, errRead := reader.ReadString('\n')
-				if errRead != nil {
-					if errors.Is(errRead, io.EOF) {
-						fmt.Println("\nExiting container session (Ctrl+D)...")
-					} else {
-						fmt.Fprintf(os.Stderr, "Error reading input: %v\n", errRead)
-					}
-					detach()
-				}
-
-				trimmedInput := strings.TrimSpace(input)
-				if trimmedInput == "detach" {
-					fmt.Println("Exiting container session (detach)...")
-					detach()
-				}
-
-				// Обработка записи в контейнер
-				_, err = io.WriteString(attachResp.Conn, input)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error writing input: %v\n", err)
-					detach()
-				}
-			}
-		}
-	}()
-
 	// Канал для обработки системных сигналов
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -163,7 +109,7 @@ func enter(containerName string) {
 			return
 		case sig := <-sigs:
 			fmt.Printf("Received signal: %v. Exiting...\n", sig)
-			detach()
+			detach(nil)
 		}
 	}()
 

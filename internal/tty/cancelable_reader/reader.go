@@ -5,6 +5,8 @@ import (
 	"io"
 )
 
+const MaxBufSize = 4096
+
 type CancelableReader struct {
 	ctx  context.Context
 	data chan []byte
@@ -36,7 +38,7 @@ func New(ctx context.Context, r io.Reader) *CancelableReader {
 }
 
 func (c *CancelableReader) begin() {
-	buf := make([]byte, 1024)
+	buf := make([]byte, MaxBufSize)
 	for {
 		n, err := c.r.Read(buf)
 		if n > 0 {

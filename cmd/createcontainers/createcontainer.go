@@ -166,7 +166,7 @@ func createContainer(ctx context.Context, cli *client.Client, image string, name
 	config := &container.Config{
 		Image:     image,
 		Labels:    labels,
-		Cmd:       []string{"/bin/bash"},
+		Cmd:       []string{"/bin/sh"},
 		Tty:       true,
 		OpenStdin: true,
 	}

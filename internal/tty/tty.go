@@ -64,7 +64,8 @@ func (t *TTY) writeRoutine() {
 				t.onDetachCallback(errRead)
 				return
 			}
-			_, err := io.WriteString(t.outputWriter, string(data))
+			dataString := string(data)
+			_, err := io.WriteString(t.outputWriter, dataString)
 			if err != nil {
 				logger.Error(errors.Wrap(errors.Wrap(err, ErrWriteOutput), Err))
 			}
@@ -91,12 +92,12 @@ func (t *TTY) readRoutine() {
 				return
 			}
 
-			inputString := strings.TrimSuffix(string(data), "\n")
-			if t.parseCommand(inputString) {
+			dataString := strings.TrimSuffix(string(data), "\n")
+			if t.parseCommand(dataString) {
 				return
 			}
 
-			_, err := io.WriteString(t.outputWriter, string(data))
+			_, err := io.WriteString(t.inputWriter, dataString)
 			if err != nil {
 				logger.Error(errors.Wrap(errors.Wrap(err, ErrWriteInput), Err))
 				return

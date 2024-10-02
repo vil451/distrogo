@@ -1,20 +1,15 @@
 package entercontainer
 
 import (
-	"context"
-	"distrogo/cmd/listcontainers"
 	"distrogo/internal/logger"
-	"distrogo/internal/tty"
+	containerService "distrogo/internal/services/container"
 	"fmt"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/strslice"
-	"github.com/docker/docker/client"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"os"
-	"os/signal"
-	"syscall"
 )
+
+const errEnter = "enter container"
 
 func EnterContainer() *cobra.Command {
 	logger.SetLogLevel(logger.LogLevelError)
@@ -46,7 +41,15 @@ func EnterContainer() *cobra.Command {
 				return
 			}
 
-			enter(containerName)
+			containerSvc, err := containerService.New()
+			if err != nil {
+				os.Exit(1)
+			}
+
+			err = containerSvc.Enter(containerName)
+			if err != nil {
+				logger.Error(errors.Wrap(err, errEnter))
+			}
 		},
 	}
 
@@ -59,111 +62,4 @@ func EnterContainer() *cobra.Command {
 	)
 
 	return command
-}
-
-func enter(containerName string) {
-	if containerName == "" {
-		fmt.Println("Container name is required")
-		os.Exit(1)
-	}
-
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		fmt.Printf("Error creating Docker client: %v\n", err)
-		os.Exit(1)
-	}
-	defer cli.Close()
-
-	err = runContainer(cli, containerName)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error running container: %v\n", err)
-		return
-	}
-
-	attachResp, ctx, ctxCancel, err := attachToContainer(cli, containerName)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error attaching to container: %v\n", err)
-		return
-	}
-
-	detach := func(err error) {
-		if err != nil {
-			logger.Debug(err)
-		}
-		ctxCancel()
-		attachResp.Close()
-	}
-
-	tty.NewTTY(ctx, attachResp.Conn, attachResp.Reader, detach)
-
-	// Канал для обработки системных сигналов
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-	case <-ctx.Done():
-		return
-	case sig := <-sigs:
-		fmt.Printf("\nReceived signal: %v. Exiting...\n", sig)
-		detach(nil)
-	}
-
-	fmt.Println("Session terminated.")
-}
-
-func runContainer(cli *client.Client, containerName string) error {
-	ctx := context.Background()
-	containers, err := listcontainers.GetContainers(ctx, cli, true)
-	if err != nil {
-		return fmt.Errorf("Error listing containers: %v", err)
-	}
-
-	containers = listcontainers.FilterContainersByLabel(containers, "manager", "distrogo")
-	var resultContainerID, state string
-	for _, container := range containers {
-		if container.Names[0][1:] == containerName {
-			resultContainerID = container.ID
-			state = container.State
-		}
-	}
-	if state == "running" {
-		return nil
-	}
-	if resultContainerID == "" {
-		return fmt.Errorf("container not found: %s", containerName)
-	}
-
-	startOptions := container.StartOptions{}
-	if err := cli.ContainerStart(ctx, resultContainerID, startOptions); err != nil {
-		return fmt.Errorf("Error starting container: %v", err)
-	}
-
-	fmt.Printf("Container %s is started with ID: %s\n", containerName, resultContainerID)
-	return nil
-}
-
-func attachToContainer(cli *client.Client, containerName string) (*types.HijackedResponse, context.Context, context.CancelFunc, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	execConfig := types.ExecConfig{
-		Cmd:          strslice.StrSlice([]string{"/bin/sh"}),
-		AttachStdin:  true,
-		AttachStdout: true,
-		AttachStderr: true,
-		Tty:          true,
-	}
-
-	execIDResp, err := cli.ContainerExecCreate(ctx, containerName, execConfig)
-	if err != nil {
-		cancel()
-		return nil, nil, nil, fmt.Errorf("Error creating exec instance: %v\n", err)
-	}
-
-	attachResp, err := cli.ContainerExecAttach(ctx, execIDResp.ID, types.ExecStartCheck{Tty: true})
-	if err != nil {
-		cancel()
-		return nil, nil, nil, fmt.Errorf("Error attaching to exec session:%v\n", err)
-	}
-
-	return &attachResp, ctx, cancel, nil
 }

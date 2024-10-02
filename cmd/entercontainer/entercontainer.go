@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"context"
 	"distrogo/cmd/listcontainers"
+	"distrogo/internal/cancelable_reader"
+	"errors"
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -67,130 +69,110 @@ func enter(containerName string) {
 		os.Exit(1)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating Docker client: %v\n", err)
+		fmt.Printf("Error creating Docker client: %v\n", err)
 		os.Exit(1)
 	}
 	defer cli.Close()
 
-	err = runContainer(ctx, cli, containerName)
+	err = runContainer(cli, containerName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error running container: %v\n", err)
-		os.Exit(1)
+		return
 	}
 
-	execConfig := types.ExecConfig{
-		Cmd:          strslice.StrSlice([]string{"/bin/sh"}),
-		AttachStdin:  true,
-		AttachStdout: true,
-		AttachStderr: true,
-		Tty:          true,
-	}
-
-	execIDResp, err := cli.ContainerExecCreate(ctx, containerName, execConfig)
+	attachResp, ctx, ctxCancel, err := attachToContainer(cli, containerName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating exec instance: %v\n", err)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "Error attaching to container: %v\n", err)
+		return
 	}
 
-	attachResp, err := cli.ContainerExecAttach(ctx, execIDResp.ID, types.ExecStartCheck{Tty: true})
-	if err != nil {
-		fmt.Println("Error attaching to exec session:", err)
-		os.Exit(1)
-	}
-	defer attachResp.Close()
+	ttyReader := cancelable_reader.New(ctx, attachResp.Reader)
 
-	// Канал для завершения горутин
-	done := make(chan struct{})
-	var once sync.Once
+	detach := func() {
+		ctxCancel()
+		attachResp.Close()
+	}
+
 	var wg sync.WaitGroup
-
-	// Канал для обработки системных сигналов
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	// Горутина для передачи вывода контейнера в stdout
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, err := io.Copy(os.Stdout, attachResp.Reader)
-		if err != nil && err != io.EOF {
-			fmt.Fprintf(os.Stderr, "Error reading output: %v\n", err)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				data := make([]byte, 1024)
+				_, errRead := ttyReader.Read(data)
+				if errRead != nil {
+					detach()
+				}
+				fmt.Printf("%s", string(data))
+			}
 		}
-		// Завершение работы
-		once.Do(func() {
-			close(done)
-		})
 	}()
 
 	// Обработка пользовательского ввода
 	reader := bufio.NewReader(os.Stdin)
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for {
 			select {
-			case <-done:
+			case <-ctx.Done():
 				return
 			default:
-				input, err := reader.ReadString('\n')
-				if err == io.EOF {
-					fmt.Println("\nExiting container session (Ctrl+D)...")
-					once.Do(func() {
-						close(done)
-					})
-					return
-				}
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
-					continue
+				input, errRead := reader.ReadString('\n')
+				if errRead != nil {
+					if errors.Is(errRead, io.EOF) {
+						fmt.Println("\nExiting container session (Ctrl+D)...")
+					} else {
+						fmt.Fprintf(os.Stderr, "Error reading input: %v\n", errRead)
+					}
+					detach()
 				}
 
 				trimmedInput := strings.TrimSpace(input)
-				if trimmedInput == "exit" {
-					fmt.Println("Exiting container session (exit)...")
-					once.Do(func() {
-						close(done)
-					})
-					return
+				if trimmedInput == "detach" {
+					fmt.Println("Exiting container session (detach)...")
+					detach()
 				}
 
 				// Обработка записи в контейнер
 				_, err = io.WriteString(attachResp.Conn, input)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Error writing input: %v\n", err)
-					// Завершение по ошибке записи
-					once.Do(func() {
-						close(done)
-					})
-					return
+					detach()
 				}
 			}
 		}
 	}()
-	// Ожидание завершения программы по системному сигналу или пользовательскому вводу
-	select {
-	case <-done:
-		cancel()
-	case sig := <-sigs:
-		fmt.Printf("Received signal: %v. Exiting...\n", sig)
-		once.Do(func() {
-			close(done)
-		})
-		cancel()
-	}
 
-	// Ожидание завершения всех горутин
+	// Канал для обработки системных сигналов
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		select {
+		case <-ctx.Done():
+			return
+		case sig := <-sigs:
+			fmt.Printf("Received signal: %v. Exiting...\n", sig)
+			detach()
+		}
+	}()
+
 	wg.Wait()
 	fmt.Println("Session terminated.")
 }
 
-func runContainer(ctx context.Context, cli *client.Client, containerName string) error {
+func runContainer(cli *client.Client, containerName string) error {
+	ctx := context.Background()
 	containers, err := listcontainers.GetContainers(ctx, cli, true)
 	if err != nil {
 		return fmt.Errorf("Error listing containers: %v", err)
@@ -218,4 +200,30 @@ func runContainer(ctx context.Context, cli *client.Client, containerName string)
 
 	fmt.Printf("Container %s is started with ID: %s\n", containerName, resultContainerID)
 	return nil
+}
+
+func attachToContainer(cli *client.Client, containerName string) (*types.HijackedResponse, context.Context, context.CancelFunc, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	execConfig := types.ExecConfig{
+		Cmd:          strslice.StrSlice([]string{"/bin/sh"}),
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: true,
+		Tty:          true,
+	}
+
+	execIDResp, err := cli.ContainerExecCreate(ctx, containerName, execConfig)
+	if err != nil {
+		cancel()
+		return nil, nil, nil, fmt.Errorf("Error creating exec instance: %v\n", err)
+	}
+
+	attachResp, err := cli.ContainerExecAttach(ctx, execIDResp.ID, types.ExecStartCheck{Tty: true})
+	if err != nil {
+		cancel()
+		return nil, nil, nil, fmt.Errorf("Error attaching to exec session:%v\n", err)
+	}
+
+	return &attachResp, ctx, cancel, nil
 }

@@ -5,7 +5,6 @@ go 1.20
 require (
 	github.com/docker/docker v25.0.4+incompatible
 	github.com/enescakir/emoji v1.0.0
-	github.com/fatih/color v1.17.0
 	github.com/jedib0t/go-pretty/v6 v6.5.9
 	github.com/spf13/cobra v1.8.0
 )

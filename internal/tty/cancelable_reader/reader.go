@@ -14,16 +14,15 @@ type CancelableReader struct {
 	r    io.Reader
 }
 
-func (c *CancelableReader) Read(p []byte) (int, error) {
+func (c *CancelableReader) Read() ([]byte, error) {
 	select {
 	case <-c.ctx.Done():
-		return 0, c.ctx.Err()
+		return nil, c.ctx.Err()
 	case d, ok := <-c.data:
 		if !ok {
-			return 0, c.err
+			return nil, c.err
 		}
-		copy(p, d)
-		return len(d), nil
+		return d, nil
 	}
 }
 

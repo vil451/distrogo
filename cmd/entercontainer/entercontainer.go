@@ -28,11 +28,21 @@ func EnterContainer() *cobra.Command {
 		Args:    cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) > 0 {
+				if containerName != "" {
+					_, err := fmt.Fprintf(os.Stderr, "Error: container name provided in both argument and --name flag\n")
+					if err != nil {
+						return
+					}
+					return
+				}
 				containerName = args[0]
 			}
 
 			if containerName == "" {
-				fmt.Println("Container name is required")
+				_, err := fmt.Fprintf(os.Stderr, "Container name is required\n")
+				if err != nil {
+					return
+				}
 				return
 			}
 
@@ -42,9 +52,9 @@ func EnterContainer() *cobra.Command {
 
 	command.Flags().StringVarP(
 		&containerName,
-		"container",
-		"c",
-		"",
+		"name",
+		"n",
+		containerName,
 		"container name",
 	)
 

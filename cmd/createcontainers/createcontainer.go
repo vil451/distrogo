@@ -26,10 +26,29 @@ func CreateContainer() *cobra.Command {
 	var imageName string
 	var pullImage bool
 	command := &cobra.Command{
-		Use:     "create",
+		Use:     "create [container name]",
 		Short:   "Create a container",
 		Aliases: []string{"c"},
 		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) > 0 {
+				if containerName != "" {
+					_, err := fmt.Fprintf(os.Stderr, "Error: container name provided in both argument and --name flag\n")
+					if err != nil {
+						return
+					}
+					return
+				}
+				containerName = args[0]
+			}
+
+			if containerName == "" {
+				_, err := fmt.Fprintf(os.Stderr, "Container name is required\n")
+				if err != nil {
+					return
+				}
+				return
+			}
+
 			if imageName == "" {
 				imageName = default_image
 			} else {
@@ -51,7 +70,7 @@ func CreateContainer() *cobra.Command {
 		&containerName,
 		"name",
 		"n",
-		"",
+		containerName,
 		"container name",
 	)
 

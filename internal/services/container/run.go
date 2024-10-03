@@ -3,41 +3,43 @@ package container
 import (
 	"fmt"
 
-	"distrogo/cmd/listcontainers"
+	distrogoLabels "distrogo/internal/services/container/labels"
+	distrogoState "distrogo/internal/services/container/state"
 	"github.com/docker/docker/api/types/container"
+	"github.com/pkg/errors"
+)
+
+const (
+	ErrRunContainer = "error run container"
 )
 
 func (s *Service) Run(containerName string) error {
 	cli, err := s.cliService.GetCLI()
 	if err != nil {
-		return err
+		return errors.Wrap(err, ErrRunContainer)
 	}
 
-	containers, err := listcontainers.GetContainers(s.ctx, cli, true)
+	containers, err := s.List(true)
 	if err != nil {
-		return fmt.Errorf("error listing containers: %v", err)
+		return errors.Wrap(err, ErrRunContainer)
+	}
+	distrogoContainers := s.FilterByLabelValue(containers, distrogoLabels.LabelManager, distrogoLabels.LabelValueDistrogo)
+
+	containersWithName := s.FilterByName(distrogoContainers, containerName)
+	if len(containersWithName) == 0 {
+		return errors.Wrap(fmt.Errorf("container not found: %s", containerName), ErrRunContainer)
 	}
 
-	containers = listcontainers.FilterContainersByLabel(containers, "manager", "distrogo")
-	var resultContainerID, state string
-	for _, cont := range containers {
-		if cont.Names[0][1:] == containerName {
-			resultContainerID = cont.ID
-			state = cont.State
-		}
-	}
-	if state == "running" {
+	cont := containersWithName[0]
+	if cont.State == distrogoState.Running {
 		return nil
-	}
-	if resultContainerID == "" {
-		return fmt.Errorf("container not found: %s", containerName)
 	}
 
 	startOptions := container.StartOptions{}
-	if errStart := cli.ContainerStart(s.ctx, resultContainerID, startOptions); errStart != nil {
-		return fmt.Errorf("error starting container: %v", errStart)
+	if errStart := cli.ContainerStart(s.ctx, cont.ID, startOptions); errStart != nil {
+		return errors.Wrap(fmt.Errorf("error starting container: %v", errStart), ErrRunContainer)
 	}
 
-	fmt.Printf("Container %s is started with ID: %s\n", containerName, resultContainerID)
+	fmt.Printf("Container %s is started with ID: %s\n", containerName, cont.ID)
 	return nil
 }

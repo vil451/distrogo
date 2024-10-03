@@ -1,7 +1,6 @@
 package container
 
 import (
-	"context"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/pkg/errors"
@@ -12,8 +11,11 @@ const (
 	ErrCAttachingToExecSession = "error attaching to exec session"
 )
 
-func (s *Service) Attach(containerName string) (*types.HijackedResponse, context.Context, context.CancelFunc, error) {
-	ctx, cancel := context.WithCancel(context.Background())
+func (s *Service) Attach(containerName string) (*types.HijackedResponse, error) {
+	cli, err := s.cliService.GetCLI()
+	if err != nil {
+		return nil, err
+	}
 
 	execConfig := types.ExecConfig{
 		Cmd:          strslice.StrSlice([]string{"/bin/sh"}),
@@ -23,17 +25,15 @@ func (s *Service) Attach(containerName string) (*types.HijackedResponse, context
 		Tty:          true,
 	}
 
-	execIDResp, err := s.cli.ContainerExecCreate(ctx, containerName, execConfig)
+	execIDResp, err := cli.ContainerExecCreate(s.ctx, containerName, execConfig)
 	if err != nil {
-		cancel()
-		return nil, nil, nil, errors.Wrap(err, ErrCreatingExecInstance)
+		return nil, errors.Wrap(err, ErrCreatingExecInstance)
 	}
 
-	attachResp, err := s.cli.ContainerExecAttach(ctx, execIDResp.ID, types.ExecStartCheck{Tty: true})
+	attachResp, err := cli.ContainerExecAttach(s.ctx, execIDResp.ID, types.ExecStartCheck{Tty: true})
 	if err != nil {
-		cancel()
-		return nil, nil, nil, errors.Wrap(err, ErrCAttachingToExecSession)
+		return nil, errors.Wrap(err, ErrCAttachingToExecSession)
 	}
 
-	return &attachResp, ctx, cancel, nil
+	return &attachResp, nil
 }

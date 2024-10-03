@@ -1,12 +1,13 @@
 package entercontainer
 
 import (
-	"distrogo/internal/logger"
-	containerService "distrogo/internal/services/container"
 	"fmt"
+	"os"
+
+	"distrogo/internal/application"
+	"distrogo/internal/logger"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 const errEnter = "enter container"
@@ -41,7 +42,13 @@ func EnterContainer() *cobra.Command {
 				return
 			}
 
-			containerSvc, err := containerService.New()
+			app, err := application.New()
+			if err != nil {
+				os.Exit(1)
+			}
+			defer app.Terminate()
+
+			containerSvc, err := app.GetContainerService()
 			if err != nil {
 				os.Exit(1)
 			}

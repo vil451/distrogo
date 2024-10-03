@@ -11,7 +11,7 @@ func (s *Service) Run(containerName string) error {
 	ctx := context.Background()
 	containers, err := listcontainers.GetContainers(ctx, s.cli, true)
 	if err != nil {
-		return fmt.Errorf("Error listing containers: %v", err)
+		return fmt.Errorf("error listing containers: %v", err)
 	}
 
 	containers = listcontainers.FilterContainersByLabel(containers, "manager", "distrogo")
@@ -31,7 +31,7 @@ func (s *Service) Run(containerName string) error {
 
 	startOptions := container.StartOptions{}
 	if err := s.cli.ContainerStart(ctx, resultContainerID, startOptions); err != nil {
-		return fmt.Errorf("Error starting container: %v", err)
+		return fmt.Errorf("error starting container: %v", err)
 	}
 
 	fmt.Printf("Container %s is started with ID: %s\n", containerName, resultContainerID)

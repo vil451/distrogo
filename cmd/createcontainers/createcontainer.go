@@ -7,8 +7,6 @@ import (
 	"os"
 )
 
-var default_image = "registry.fedoraproject.org/fedora-toolbox:39"
-
 func CreateContainer() *cobra.Command {
 	var containerName string
 	var imageName string
@@ -18,7 +16,6 @@ func CreateContainer() *cobra.Command {
 		Short:   "Create a container",
 		Aliases: []string{"c"},
 		Run: func(cmd *cobra.Command, args []string) {
-			image, err := iamgeService.New(imageName, containerName)
 
 			if len(args) > 0 {
 				if containerName != "" {
@@ -30,6 +27,7 @@ func CreateContainer() *cobra.Command {
 				}
 				containerName = args[0]
 			}
+			image, err := iamgeService.New(imageName, containerName)
 
 			if err != nil {
 				os.Exit(1)
@@ -40,7 +38,10 @@ func CreateContainer() *cobra.Command {
 					return
 				}
 			}
-			image.Create(image)
+			err = image.Create(image)
+			if err != nil {
+				return
+			}
 		},
 	}
 

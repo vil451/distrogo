@@ -2,12 +2,15 @@ package tty
 
 import (
 	"context"
-	"distrogo/internal/logger"
-	"distrogo/internal/tty/cancelable_reader"
-	"github.com/pkg/errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
+	"syscall"
+
+	"distrogo/internal/logger"
+	"distrogo/internal/tty/cancelable_reader"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -49,6 +52,16 @@ func NewTTY(ctx context.Context, writer io.Writer, reader io.Reader, onDetachCal
 	go tty.readRoutine()
 	go tty.writeRoutine()
 	return tty
+}
+
+func (t *TTY) SendSignal(signal os.Signal) {
+	switch signal {
+	case syscall.SIGINT, syscall.SIGTERM:
+		_, err := io.WriteString(t.inputWriter, fmt.Sprintf("%c", '\003'))
+		if err != nil {
+			logger.Error(err)
+		}
+	}
 }
 
 func (t *TTY) writeRoutine() {

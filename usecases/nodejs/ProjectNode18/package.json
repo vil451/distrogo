@@ -1,0 +1,14 @@
+{
+  "name": "node-compatibility-demo",
+  "version": "1.0.0",
+  "description": "A simple Node.js app to demonstrate version compatibility between Node.js 18 and 20",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-modules index.js"
+  },
+  "keywords": ["nodejs", "compatibility", "example", "version18", "version20"],
+  "author": "Your Name",
+  "license": "ISC",
+  "dependencies": {}
+}

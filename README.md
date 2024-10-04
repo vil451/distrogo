@@ -1,7 +1,9 @@
 # Distrogo
 
-Distrogo is a command-line tool for managing Docker containers easily. It provides a set of commands to create, start,
-enter, and list Docker containers with a user-friendly interface.
+Distrogo is a tool for launching containers directly in your terminal. 
+The created container integrates with the host system and the working directory, providing command-line utilities
+for interacting with the local project environment. This container can then be used to work with the project's 
+file system and perform various tasks related to its development and management.
 
 ## Table of Contents
 
@@ -15,10 +17,10 @@ enter, and list Docker containers with a user-friendly interface.
 
 ## Features
 
-- Create and manage Docker containers with ease.
-- Enter running containers with an interactive shell.
-- List containers with filtering options.
-- Simple command-line interface for quick access.
+- Create and manage containers for your project.
+- Run and work on your project in a pre-configured environment within the container.
+- View your containers and the environment settings inside them.
+- Simple command-line interface for quick and easy access to features..
 
 ## Installation
 
@@ -110,3 +112,9 @@ distrogo enter my_container
 ```bash
 distrogo list
 ```
+
+### Use cases
+
+[NodeJS](usecases/nodejs/how-use.md)
+
+ 

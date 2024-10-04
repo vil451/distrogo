@@ -46,9 +46,14 @@ var (
 
 func GetConfig() *Config {
 	once.Do(func() {
-		// LOAD CONFIG
+		instance = loadConfig()
 	})
 	return instance
+}
+
+func loadConfig() *Config {
+	fileConfig := LoadMainConfig()
+	return mapConfig(fileConfig)
 }
 
 // Reflection not working for non exported fields, so we need to map it manually. Every time we add new Field to structs we need modify this method too.

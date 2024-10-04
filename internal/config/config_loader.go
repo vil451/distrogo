@@ -1,6 +1,7 @@
 package config
 
 import (
+	"distrogo/internal/logger"
 	"encoding/json"
 	"fmt"
 	"gopkg.in/yaml.v3"
@@ -19,9 +20,15 @@ func ReadConfigFile(configPaths []string, configuration interface{}) (err error)
 	}
 
 	for _, path := range configPaths {
-		err = loadConfigFile(path, &configuration)
-		if err == nil {
-			break
+		var temp interface{}
+		err = loadConfigFile(path, &temp)
+		if err != nil {
+			continue
+		}
+
+		err = mergeConfigs(&configuration, &temp)
+		if err != nil {
+			logger.Error("Merge configuration with base config not succeeded: %s", err)
 		}
 	}
 
@@ -30,6 +37,32 @@ func ReadConfigFile(configPaths []string, configuration interface{}) (err error)
 	}
 
 	return enrichConfigFromEnvVariables(configuration)
+}
+
+func mergeConfigs(dst, src interface{}) error {
+	dstValue := reflect.ValueOf(dst).Elem()
+	srcValue := reflect.ValueOf(src).Elem()
+
+	var err error = nil
+	for i := 0; i < srcValue.NumField(); i++ {
+		srcField := srcValue.Field(i)
+		dstField := dstValue.Field(i)
+
+		if !dstField.CanSet() {
+			err = fmt.Errorf("field is unsetable: %s", dstField.String())
+		}
+
+		if srcField.Kind() == reflect.Struct {
+			err = mergeConfigs(dstField.Addr().Interface(), srcField.Addr().Interface())
+			if err != nil {
+				return err
+			}
+		} else if !srcField.IsZero() {
+			dstField.Set(srcField)
+		}
+	}
+
+	return err
 }
 
 func loadConfigFile(filePath string, configuration interface{}) error {
